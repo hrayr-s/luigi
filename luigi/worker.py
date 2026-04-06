@@ -551,8 +551,8 @@ class Worker:
             scheduler = Scheduler()
 
         self.worker_processes = int(worker_processes)
-        self.worker_process_initializer: Callable | None = kwargs.get("worker_process_initializer", None)
-        self.worker_process_init_args: List[Any] = kwargs.get("worker_process_init_args", [])
+        self.pool_process_initializer: Callable | None = kwargs.pop("pool_process_initializer", None)
+        self.pool_process_init_args: List[Any] = kwargs.pop("pool_process_init_args", [])
         self._worker_info = self._generate_worker_info()
 
         self._config = worker(**kwargs)
@@ -785,8 +785,8 @@ class Worker:
             queue = multiprocessing.Manager().Queue()
             pool = multiprocessing.Pool(
                 processes=processes if processes > 0 else None,
-                initializer=self.worker_process_initializer,
-                initargs=self.worker_process_initializer_args,
+                initializer=self.pool_process_initializer,
+                initargs=self.pool_process_init_args,
             )
         else:
             queue = DequeQueue()
