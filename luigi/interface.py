@@ -89,15 +89,23 @@ class _WorkerSchedulerFactory:
     def create_remote_scheduler(self, url):
         return rpc.RemoteScheduler(url)
 
-    def create_worker(self, scheduler, worker_processes, assistant=False):
-        return worker.Worker(scheduler=scheduler, worker_processes=worker_processes, assistant=assistant)
+    def create_worker(self, scheduler, worker_processes, assistant=False, **kwargs):
+        return worker.Worker(scheduler=scheduler, worker_processes=worker_processes, assistant=assistant, **kwargs)
 
 
-def _schedule_and_run(tasks, worker_scheduler_factory=None, override_defaults=None):
+def _schedule_and_run(
+        tasks,
+        worker_scheduler_factory=None,
+        override_defaults=None,
+        pool_process_initializer=None,
+        pool_process_init_args=None,
+):
     """
     :param tasks:
     :param worker_scheduler_factory:
     :param override_defaults:
+    :param pool_process_initializer:
+    :param pool_process_init_args:
     :return: True if all tasks and their dependencies were successfully run (or already completed);
              False if any error occurred. It will return a detailed response of type LuigiRunResult
              instead of a boolean if detailed_summary=True.
@@ -127,7 +135,13 @@ def _schedule_and_run(tasks, worker_scheduler_factory=None, override_defaults=No
             )
         sch = worker_scheduler_factory.create_remote_scheduler(url=url)
 
-    worker = worker_scheduler_factory.create_worker(scheduler=sch, worker_processes=env_params.workers, assistant=env_params.assistant)
+    worker = worker_scheduler_factory.create_worker(
+        scheduler=sch,
+        worker_processes=env_params.workers,
+        assistant=env_params.assistant,
+        pool_process_initializer=pool_process_initializer,
+        pool_process_init_args=pool_process_init_args
+    )
 
     success = True
     logger = logging.getLogger("luigi-interface")
@@ -177,7 +191,7 @@ def _run(cmdline_args=None, main_task_cls=None, worker_scheduler_factory=None, u
         return _schedule_and_run([cp.get_task_obj()], worker_scheduler_factory)
 
 
-def build(tasks, worker_scheduler_factory=None, detailed_summary=False, **env_params):
+def build(tasks, worker_scheduler_factory=None, detailed_summary=False, pool_process_initializer=None, pool_process_init_args=None, **env_params):
     """
     Run internally, bypassing the cmdline parsing.
 
@@ -194,11 +208,20 @@ def build(tasks, worker_scheduler_factory=None, detailed_summary=False, **env_pa
 
     :param tasks:
     :param worker_scheduler_factory:
+    :param detailed_summary:
+    :param pool_process_initializer:
+    :param pool_process_init_args:
     :param env_params:
     :return: True if there were no scheduling errors, even if tasks may fail.
     """
     if "no_lock" not in env_params:
         env_params["no_lock"] = True
 
-    luigi_run_result = _schedule_and_run(tasks, worker_scheduler_factory, override_defaults=env_params)
+    luigi_run_result = _schedule_and_run(
+        tasks,
+        worker_scheduler_factory,
+        override_defaults=env_params,
+        pool_process_initializer=pool_process_initializer,
+        pool_process_init_args=pool_process_init_args,
+    )
     return luigi_run_result if detailed_summary else luigi_run_result.scheduling_succeeded
